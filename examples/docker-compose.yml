@@ -1,0 +1,7 @@
+dev:
+    build: .
+    command: /bin/bash -c "cd examples && elm-reactor"
+    volumes:
+        - ../:/src
+    ports:
+        - 8000:8000
