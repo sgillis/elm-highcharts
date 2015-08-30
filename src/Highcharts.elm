@@ -1,6 +1,7 @@
 module Highcharts where
 
 import Graphics.Element exposing (..)
+import Native.Highcharts
 
 type alias Series =
     { name : String
