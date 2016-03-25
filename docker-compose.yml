@@ -1,0 +1,12 @@
+dev:
+    build: .
+    command: make Main.elm --output /build/app.js
+    volumes:
+      - ./src/Highcharts/ChartOptions.elm:/code/Highcharts/ChartOptions.elm
+      - ./src/Highcharts/Pie.elm:/code/Highcharts/Pie.elm
+      - ./src/Native/Highcharts.js:/code/Native/Highcharts.js
+      - ./src/Highcharts.elm:/code/Highcharts.elm
+      - ./examples/Main.elm:/code/Main.elm
+      - ./examples/elm-package.json:/code/elm-package.json
+      - ./_build:/build
+      - ./elm-stuff:/code/elm-stuff

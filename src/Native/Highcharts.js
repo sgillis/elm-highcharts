@@ -2,80 +2,109 @@ Elm.Native = Elm.Native || {};
 Elm.Native.Highcharts = Elm.Native.Highcharts || {};
 
 Elm.Native.Highcharts.make = function(elm){
-    'use strict';
-    elm.Native = elm.Native || {};
-    elm.Native.Highcharts = elm.Native.Highcharts || {};
-    if (elm.Native.Highcharts.values) return elm.Native.Highcharts.values;
+  'use strict';
+  elm.Native = elm.Native || {};
+  elm.Native.Highcharts = elm.Native.Highcharts || {};
+  if (elm.Native.Highcharts.values) return elm.Native.Highcharts.values;
 
-    var newElement = Elm.Graphics.Element.make(elm).newElement;
-    var Element = Elm.Native.Graphics.Element.make(elm);
-    var List = Elm.Native.List.make(elm);
+  var VirtualDom = Elm.Native.VirtualDom.make(elm);
+  var List = Elm.Native.List.make(elm);
 
-    function render(model){
-        var chart = Element.createNode('div');
-        chart.id = 'highchart-container';
-        setTimeout(function(){
-            create_highchart(model)
-        }, 100);
-        return chart
+  var objectComparison = function(series1, series2){
+    return JSON.stringify(series1) == JSON.stringify(series2);
+  };
+
+  var decode = function(chart){
+    return {
+      chartOptions: decodeChartOptions(chart.chartOptions),
+      tooltip: chart.tooltip,
+      plotOptions: decodePlotOptions(chart.plotOptions),
+      series: decodeSeries(chart.series)
+    };
+  };
+
+  var decodeChartOptions = function(chartOptions){
+    return chartOptions;
+  };
+
+  var decodePlotOptions = function(plotOptions){
+    var options = List.toArray(plotOptions);
+    var decoded = {};
+    for(var i=0; i<options.length; i++){
+      if(options[i].ctor == "PieOptions"){
+        decoded['pie'] = options[i]._0;
+      }
     }
+    return decoded;
+  };
 
-    function update(node, oldModel, newModel){
-        update_highchart(newModel);
-        return node
+  var decodeSeries = function(series){
+    var ss = List.toArray(series);
+    var decoded = [];
+    for(var i=0; i<ss.length; i++){
+      if(ss[i].ctor == "Pie"){
+        decoded.push(decodePieOptions(ss[i]._0));
+      }
     }
+    return decoded;
+  };
 
-    function update_highchart(model){
-        series = transform_series(model.series, elm);
-        Highcharts.charts[0].series[0].setData(series[0].data);
-        Highcharts.charts[0].series[1].setData(series[1].data);
-    }
+  var decodePieOptions = function(pieOptions){
+    return {
+      type: 'pie',
+      innerSize: pieOptions.innerSize + '%',
+      data: List.toArray(pieOptions.data)
+    };
+  };
 
-    function create_highchart(model){
-        series = transform_series(model.series)
-        $('#highchart-container').highcharts({
-            chart: {
-                type: 'bar',
-            },
-            title: {
-                text: model.title
-            },
-            xAxis: {
-                categories: List.toArray(model.categories)
-            },
-            yAxis: {
-                title: {
-                    text: model.yaxistitle
-                }
-            },
-            series: series
-        });
-    }
+  var Hook = function(chart){
+    this.chart = decode(chart);
+    this.highchart = undefined;
+  };
 
-    function transform_series(series){
-        series = List.toArray(series);
-        for(i=0; i<series.length; i++){
-            series[i].data = List.toArray(series[i].data)
-        }
-        return series
-    }
+  Hook.prototype.initialize = function(node, propertyName, previousValue){
+    this.highchart = new Highcharts.Chart(node, {
+      chart: this.chart.chartOptions,
+      tooltip: { pointFormat: this.chart.tooltip },
+      plotOptions: this.chart.plotOptions,
+      series: this.chart.series
+    });
+  };
 
-    function barChart(title, categories, yaxistitle, series){
-        return A3(Element.newElement, 800, 600, {
-            'ctor'   : 'Custom',
-            'type'   : 'Highchart',
-            'render' : render,
-            'update' : update,
-            'model'  : {
-                title: title,
-                categories: categories,
-                yaxistitle: yaxistitle,
-                series: series
-            }
-        });
+  Hook.prototype.loadData = function(previousValue){
+    var newSeries = this.chart.series;
+    var oldSeries = previousValue.chart.series;
+    if(!objectComparison(newSeries, oldSeries)){
+      // Extend to support multiple series and changing of length
+      // of series array
+      this.highchart.series[0].setData(
+        newSeries[0].data, true, true);
     }
+  };
 
-    return elm.Native.Highcharts.values = {
-        barChart: F4(barChart),
+  Hook.prototype.update = function(node, propertyName, previousValue){
+    this.highchart = previousValue.highchart;
+    this.loadData(previousValue);
+  };
+
+  Hook.prototype.hook = function(node, propertyName, previousValue) {
+    if(previousValue === undefined || previousValue.highchart === undefined){
+      this.initialize(node, propertyName, previousValue);
+    } else {
+      this.update(node, propertyName, previousValue);
     }
-}
+  };
+
+  function highchart(chart){
+    var propertyList = List.fromArray(
+      [ { key: "highchart-hook", value: new Hook(chart) } ]
+    );
+    var node =
+          A3(VirtualDom.node, "highchart", propertyList, List.fromArray([]));
+    return node;
+  }
+
+  return elm.Native.Highcharts.values = {
+    highchart: highchart
+  };
+};
